@@ -1,0 +1,29 @@
+[project]
+name = "surakshaai-backend"
+version = "0.1.0"
+description = "SurakshaAI — Hinglish voice fraud guardian and rescue agent"
+requires-python = ">=3.11"
+
+dependencies = [
+    # STT — AssemblyAI streaming (CLAUDE.MD §5). 1.5.5 is the first release
+    # carrying the streaming.v3 surface used throughout this codebase.
+    "assemblyai>=1.5.5",
+
+    # TTS — scenario and agent voices (§5 VOICE CASTING). No API key required.
+    "edge-tts>=7.0.0",
+
+    # Audio: edge-tts emits 24kHz MP3, AssemblyAI needs 16kHz PCM16 mono (§7.3).
+    # soundfile bundles libsndfile (decodes MP3) and soxr resamples, so neither
+    # needs a system ffmpeg install.
+    "soundfile>=0.12.1",
+    "soxr>=0.5.0",
+    "numpy>=1.26",
+
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = []
+
+[tool.uv]
+package = false
