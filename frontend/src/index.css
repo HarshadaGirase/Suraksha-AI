@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* CLAUDE.MD §16 design tokens, mapped into Tailwind's theme so they are
+   available as utilities (bg-panel, text-amber, border-line, font-display).
+   Colours are the approved mockup's values, unchanged. */
+@theme {
+  --color-bg: #0d0a14;
+  --color-panel: #16101f;
+  --color-panel2: #1c1428;
+  --color-line: #2a2140;
+
+  --color-ink: #f3effa;
+  --color-muted: #a79fc0;
+  --color-faint: #6e6588;
+
+  --color-amber: #ffb224;
+  --color-amber2: #ff7a1a;
+  --color-violet: #8b5cf6;
+  --color-mint: #34d399;
+  --color-danger: #ff5470;
+
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "Manrope", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+/* The threat bar and clock ring animate via inline style; everything else is
+   utilities. Kept here because Tailwind has no keyframe utility for these. */
+@keyframes pulse-soft {
+  50% {
+    opacity: 0.72;
+  }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 1.2s infinite;
+}
