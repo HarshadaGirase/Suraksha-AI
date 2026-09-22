@@ -1,0 +1,15 @@
+# Deployment pins (PUBLIC MODE, CLAUDE.MD §6).
+# Local development uses uv with pyproject.toml; Render installs from here.
+# Versions match what the build was verified against.
+
+assemblyai==1.5.5
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+
+# Audio: decode/resample for sandbox injection and Gate 0 tooling.
+edge-tts==7.2.8
+soundfile==0.14.0
+soxr==1.1.0
+numpy==2.4.6

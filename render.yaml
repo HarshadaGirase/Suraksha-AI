@@ -1,0 +1,35 @@
+# Backend deployment (CLAUDE.MD §6 PUBLIC MODE).
+#
+# The backend CANNOT go on Vercel: its serverless functions do not hold a
+# WebSocket open, so WS#1 dies. Render keeps a normal long-lived process, which
+# is why it is the target here. Railway and Fly.io work identically.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> point at this repo.
+# Secrets are NOT in this file; set them in the dashboard.
+
+services:
+  - type: web
+    name: surakshaai-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # $PORT is injected by Render; binding to it is required or the deploy
+    # is marked unhealthy and killed.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.13"
+      - key: ASSEMBLYAI_API_KEY
+        sync: false # set in dashboard
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false # Neon or Supabase connection string
+      - key: ALLOWED_ORIGINS
+        sync: false # https://<your-project>.vercel.app
+      - key: TTS_VOICE_AGENT
+        value: hi-IN-SwaraNeural
+      - key: TTS_VOICE_SCAMMER
+        value: hi-IN-MadhurNeural
