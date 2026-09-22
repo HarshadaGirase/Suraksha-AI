@@ -1,0 +1,13 @@
+# env & secrets
+.env
+backend/.env
+**/__pycache__/
+node_modules/
+dist/
+# local data
+*.db
+postgres-data/
+tts_cache/
+# misc
+.DS_Store
+.vercel
