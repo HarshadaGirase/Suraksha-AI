@@ -5,11 +5,13 @@ with:  uvicorn app.main:app --reload --port 8000
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.db import pool
 from app.ws.audio import router as ws_router
 
 logging.basicConfig(
@@ -20,10 +22,21 @@ logging.basicConfig(
 
 settings = get_settings()
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # A missing or unreachable database must not stop the app booting: the STT
+    # pipeline does not need it, and a dead /ws/audio reads as a broken product
+    # (PLAN.md open risks).
+    await pool.connect(settings)
+    yield
+    await pool.disconnect()
+
+
 app = FastAPI(
     title="SurakshaAI",
-    description="Voice Guardian & Fraud Rescue Network",
+    description="Voice Guardian & Fraud Rescue Agent",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -39,17 +52,24 @@ app.include_router(ws_router)
 
 @app.get("/api/health")
 async def health() -> dict[str, object]:
-    """Liveness plus which dependencies are actually configured.
+    """Liveness, plus the state of each dependency.
 
-    Reports configuration, not reachability: it must stay cheap enough for the
-    deployment keep-alive pinger (PLAN.md C9) without burning STT credit.
+    STT and Gemini report configuration only — probing them would burn credit
+    on every keep-alive ping (PLAN.md open risks). The database reports real
+    reachability, because "configured but unreachable" is the failure that
+    actually bites during a demo, and a SELECT 1 is free.
     """
     return {
         "status": "ok",
         "services": {
-            "stt": "configured" if settings.has_stt else "missing_key",
-            "gemini": "configured" if settings.gemini_api_key not in ("", "your_key_here") else "missing_key",
-            # Postgres is not installed locally yet; first needed at M2.
-            "database": "configured" if settings.database_url else "not_configured",
+            "stt": (
+                "online" if settings.stt_live
+                else "disabled" if settings.has_stt
+                else "missing_key"
+            ),
+            "gemini": "configured" if settings.has_gemini else "missing_key",
+            "database": "online" if await pool.healthy() else (
+                "unreachable" if settings.database_url else "not_configured"
+            ),
         },
     }

@@ -78,6 +78,19 @@ async def ws_audio(ws: WebSocket) -> None:
         await ws.close()
         return
 
+    # Credit guard: a key exists but streaming is switched off. Say so plainly
+    # rather than opening a billed stream, and stay connected so the UI reads
+    # as idle-by-choice instead of broken.
+    if not settings.stt_enabled:
+        await ws.send_json(
+            ErrorEvent(
+                message="Streaming is off (STT_ENABLED=false) — no AssemblyAI "
+                        "credit will be spent. Set STT_ENABLED=true to test live."
+            ).dump()
+        )
+        await ws.close()
+        return
+
     session = SttSession(settings, speaker="victim")
     try:
         await session.start()
@@ -90,14 +103,27 @@ async def ws_audio(ws: WebSocket) -> None:
 
     audio = asyncio.create_task(_pump_audio(ws, session))
     events = asyncio.create_task(_pump_events(ws, session))
+    # Third racer: a hard ceiling on billed stream time. Without it, one tab
+    # left open overnight quietly spends the whole credit balance.
+    budget = asyncio.create_task(asyncio.sleep(settings.stt_max_session_seconds))
+    tasks = (audio, events, budget)
     try:
-        # Whichever finishes first ends the call; the other is cancelled below.
-        await asyncio.wait({audio, events}, return_when=asyncio.FIRST_COMPLETED)
+        # Whichever finishes first ends the call; the others are cancelled below.
+        await asyncio.wait(set(tasks), return_when=asyncio.FIRST_COMPLETED)
+        if budget.done():
+            log.info("session budget reached (%ss)", settings.stt_max_session_seconds)
+            await ws.send_json(
+                ErrorEvent(
+                    message=f"Session ended after "
+                            f"{settings.stt_max_session_seconds}s to protect "
+                            f"streaming credit. Reconnect to continue."
+                ).dump()
+            )
     except WebSocketDisconnect:
         pass
     finally:
-        for task in (audio, events):
+        for task in tasks:
             task.cancel()
-        await asyncio.gather(audio, events, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
         await session.stop()
         log.info("WS#1 closed")

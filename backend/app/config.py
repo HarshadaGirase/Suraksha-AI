@@ -19,8 +19,18 @@ class Settings(BaseSettings):
     assemblyai_api_key: str = ""
     gemini_api_key: str = ""
 
-    # Not used until M2 (create_case). Postgres is not installed locally yet,
-    # so the backend deliberately does not open a connection at startup.
+    # CREDIT GUARD. Off by default: with a key present, every browser that
+    # opens /ws/audio would otherwise start a billed AssemblyAI stream, and a
+    # forgotten tab burns credit with nothing on screen to show for it.
+    # Turn on deliberately for a real test, then turn it back off.
+    stt_enabled: bool = False
+
+    # Second net, for the case where it is on and a tab is left open. The SDK
+    # will not hold a stream past this; a demo turn is seconds, not minutes.
+    stt_max_session_seconds: int = 180
+
+    # infra/docker-compose.yml publishes on 5433, not 5432 — see the comment
+    # there. Empty means "run without a case record", not "fail to boot".
     database_url: str = ""
 
     # §5 VOICE CASTING
@@ -38,7 +48,23 @@ class Settings(BaseSettings):
 
     @property
     def has_stt(self) -> bool:
-        return bool(self.assemblyai_api_key) and self.assemblyai_api_key != "your_key_here"
+        """A key is configured. Says nothing about whether we may spend it."""
+        return self._is_set(self.assemblyai_api_key)
+
+    @property
+    def stt_live(self) -> bool:
+        """We are allowed to open a billed stream right now."""
+        return self.has_stt and self.stt_enabled
+
+    @property
+    def has_gemini(self) -> bool:
+        return self._is_set(self.gemini_api_key)
+
+    @staticmethod
+    def _is_set(value: str) -> bool:
+        # .env.example ships placeholders; treating one as a real key produces
+        # a 401 from the provider instead of an honest "missing key" message.
+        return bool(value) and value not in ("your_key_here", "changeme")
 
 
 @lru_cache
