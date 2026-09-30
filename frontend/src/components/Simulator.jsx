@@ -37,7 +37,14 @@ const CONN_LABEL = {
   idle: ["STATUS: STANDBY", "border-line text-faint"],
   connecting: ["CONNECTING…", "border-amber/40 bg-amber/15 text-amber"],
   open: ["CONNECTED", "border-mint/40 bg-mint/10 text-mint"],
-  reconnecting: ["RECONNECTING…", "border-amber/40 bg-amber/15 text-amber animate-pulse-soft"],
+  // Render's free tier idles down after ~15 min and takes roughly 50s to wake.
+  // A judge opening a cold link sees a failing socket and reads the project as
+  // broken, so the reconnect state says what is actually happening (PLAN.md
+  // open risks).
+  reconnecting: [
+    "WAKING BACKEND… (up to 50s on free tier)",
+    "border-amber/40 bg-amber/15 text-amber animate-pulse-soft",
+  ],
   error: ["CONNECTION ERROR", "border-danger/40 bg-danger/15 text-danger"],
 };
 

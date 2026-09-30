@@ -13,6 +13,9 @@ services:
     runtime: python
     plan: free
     rootDir: backend
+    # WeasyPrint needs cairo/pango at runtime, not just pip wheels. The
+    # Devanagari font itself is committed to app/docs/fonts rather than
+    # installed here, so the PDF renders identically everywhere.
     buildCommand: pip install -r requirements.txt
     # $PORT is injected by Render; binding to it is required or the deploy
     # is marked unhealthy and killed.
@@ -25,6 +28,10 @@ services:
         sync: false # set in dashboard
       - key: GEMINI_API_KEY
         sync: false
+      # Free-tier daily request quota is PER MODEL. If one Flash model is
+      # exhausted, switch this rather than waiting for the reset.
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
       - key: DATABASE_URL
         sync: false # Neon or Supabase connection string
       - key: ALLOWED_ORIGINS
@@ -33,3 +40,11 @@ services:
         value: hi-IN-SwaraNeural
       - key: TTS_VOICE_SCAMMER
         value: hi-IN-MadhurNeural
+      # CREDIT GUARD. Left FALSE here on purpose: a public link that opens a
+      # billed AssemblyAI stream on every page load will drain the balance
+      # while nobody is watching. Flip it in the dashboard for a demo window,
+      # then flip it back.
+      - key: STT_ENABLED
+        value: "false"
+      - key: STT_MAX_SESSION_SECONDS
+        value: "180"
