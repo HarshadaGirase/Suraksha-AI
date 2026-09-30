@@ -74,6 +74,31 @@ def redact_digits(text: str, mask: str = MASK) -> str:
     return _CONTIGUOUS.sub(sub, text)
 
 
+# Keys whose values are written through unmasked. A UTR is a 12-digit
+# transaction reference — long enough that redact_digits would eat it, but it
+# authorises nothing and §10.1 lists it as an AI-FILLED field. A complaint
+# without it gets rejected at the counter, so masking it would break the one
+# document this product exists to produce. Nothing else is exempt.
+UNREDACTED_KEYS = frozenset({"utr"})
+
+
+def redact_json(value, _key: str | None = None):
+    """Recursively redact strings inside dicts/lists before persistence.
+
+    Everything written to cases.transcript, tool_events.args and
+    tool_events.result goes through here (§12). Non-string leaves — ints,
+    floats, bools, None — are returned untouched, which is what keeps the
+    `amount` column intact.
+    """
+    if isinstance(value, dict):
+        return {k: redact_json(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_json(v, _key) for v in value]
+    if isinstance(value, str):
+        return value if _key in UNREDACTED_KEYS else redact_digits(value)
+    return value
+
+
 def contains_digit_run(text: str) -> bool:
     """True if text holds a digit run long enough to be a credential.
 

@@ -1,0 +1,36 @@
+# Local Postgres for DEMO MODE (CLAUDE.MD §6).
+#
+# Port 5433, not 5432: a system Postgres on the default port is common and the
+# collision is silent — you connect to the wrong database and the schema is
+# simply missing. 5433 makes it unambiguous.
+#
+#   docker compose -f infra/docker-compose.yml up -d
+#   docker compose -f infra/docker-compose.yml exec db psql -U suraksha -c '\dt'
+#
+# Plain postgres:16, not pgvector/pgvector — the vector extension was removed
+# with the RAG corpus (§21 change log #2).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: suraksha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: suraksha
+      POSTGRES_PASSWORD: suraksha
+      POSTGRES_DB: suraksha
+    ports:
+      - "5433:5432"
+    volumes:
+      - suraksha-pgdata:/var/lib/postgresql/data
+      # Runs once, only when the volume is empty. Editing init.sql after the
+      # first boot does nothing — drop the volume to re-apply.
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suraksha -d suraksha"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  suraksha-pgdata:

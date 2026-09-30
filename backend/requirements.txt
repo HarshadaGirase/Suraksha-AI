@@ -7,6 +7,7 @@ fastapi==0.141.1
 uvicorn[standard]==0.53.0
 pydantic-settings==2.15.0
 python-dotenv==1.2.3
+asyncpg==0.31.0
 
 # Audio: decode/resample for sandbox injection and Gate 0 tooling.
 edge-tts==7.2.8
