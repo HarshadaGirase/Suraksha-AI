@@ -52,9 +52,42 @@ export default function App() {
     <div className="px-4 pb-12 pt-[18px] md:px-[30px]">
       <header className="mb-[14px] flex items-start gap-[14px]">
         <div className="flex items-center gap-[11px]">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-gradient-to-br from-amber to-amber2 text-xl shadow-[0_0_22px_rgba(255,178,36,.13)]">
-            ⏱
-          </div>
+          {/* The mark is the product: a shield containing a voice waveform
+              that stops dead at a cut line. Same artwork as the favicon. */}
+          <svg
+            viewBox="0 0 64 64"
+            className="h-10 w-10 shrink-0 rounded-[11px] shadow-[0_0_22px_rgba(255,178,36,.13)]"
+            role="img"
+            aria-label="SurakshaAI"
+          >
+            <defs>
+              <linearGradient id="logoG" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#FFB224" />
+                <stop offset="100%" stopColor="#8B5CF6" />
+              </linearGradient>
+            </defs>
+            <rect width="64" height="64" rx="14" fill="#16101F" />
+            <path
+              d="M32 9 L51 16 v15c0 12-8 20-19 24-11-4-19-12-19-24V16z"
+              fill="none"
+              stroke="url(#logoG)"
+              strokeWidth="3.2"
+              strokeLinejoin="round"
+            />
+            <g stroke="#FFB224" strokeWidth="3" strokeLinecap="round">
+              <line x1="22" y1="28" x2="22" y2="38" />
+              <line x1="27" y1="24" x2="27" y2="42" />
+              <line x1="32" y1="20" x2="32" y2="46" />
+            </g>
+            <g stroke="#2A2140" strokeWidth="3" strokeLinecap="round">
+              <line x1="37" y1="32" x2="37" y2="34" />
+              <line x1="42" y1="32" x2="42" y2="34" />
+            </g>
+            <line
+              x1="34.5" y1="17" x2="34.5" y2="49"
+              stroke="#FF5470" strokeWidth="2.4" strokeLinecap="round"
+            />
+          </svg>
           <div>
             <h1 className="font-display text-[21px]">
               Suraksha<i className="not-italic text-amber">AI</i>
@@ -63,8 +96,8 @@ export default function App() {
               </span>
             </h1>
             <div className="mt-[2px] text-[11px] text-faint">
-              Voice Guardian &amp; Fraud Rescue Network — intercept live scams · rescue victims in
-              the golden hour
+              Voice Guardian &amp; Fraud Rescue Agent — sever the channel mid-scam · draft the
+              1930 complaint while they talk
             </div>
           </div>
         </div>

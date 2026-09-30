@@ -17,11 +17,18 @@ const STATS = [
   ["stt_latency", "🎙 STT LATENCY", "chunk → partial transcript"],
 ];
 
+// id is the React key; svc is which connection.status service drives the badge.
+// Two cards legitimately share a service — the guard and the tool loop are both
+// Gemini — so the two cannot be the same field.
 const INFRA = [
-  ["stt", "Streaming STT", "AssemblyAI Universal-3.6 Pro · 16kHz WebSocket · partials + word timestamps."],
-  ["gemini", "Guard Intent Engine", "Keyterm rules on partials + Gemini classification on finals."],
-  ["gemini", "Gemini Tool Calling", "4 JSON-schema tools: classify · extract · create_case · draft_1930."],
-  ["db", "Case Record", "PostgreSQL. Digit runs are masked before anything is written."],
+  { id: "stt", svc: "stt", name: "Streaming STT",
+    desc: "AssemblyAI Universal-3.6 Pro · 16kHz WebSocket · partials + word timestamps." },
+  { id: "guard", svc: "gemini", name: "Guard Intent Engine",
+    desc: "Keyterm rules from the Gate 0 fixture + RBI 1600xx caller check." },
+  { id: "tools", svc: "gemini", name: "Gemini Tool Calling",
+    desc: "4 JSON-schema tools: classify · extract · create_case · draft_1930." },
+  { id: "db", svc: "db", name: "Case Record",
+    desc: "PostgreSQL. Digit runs are masked before anything is written." },
 ];
 
 const SCENARIOS = [
@@ -49,7 +56,13 @@ const CONN_LABEL = {
 };
 
 export default function Simulator({ bus, mic, mode, setMode, scenario, setScenario }) {
-  const [connText, connCls] = CONN_LABEL[bus.connection] || CONN_LABEL.idle;
+  let [connText, connCls] = CONN_LABEL[bus.connection] || CONN_LABEL.idle;
+  // The credit guard holds the socket open and disarms streaming. That is a
+  // deliberate state, not a fault, so it must not read as one.
+  if (bus.connection === "open" && /STT_ENABLED/.test(bus.error || "")) {
+    connText = "STREAMING OFF — credit protected";
+    connCls = "border-violet/40 bg-violet/15 text-[#C4B0FF]";
+  }
 
   const threatColor =
     bus.threat.score >= 75 ? "text-danger" : bus.threat.score >= 40 ? "text-amber" : "text-faint";
@@ -84,8 +97,8 @@ export default function Simulator({ bus, mic, mode, setMode, scenario, setScenar
       {/* ---------------------------------------------------- infra */}
       <SecTitle>ACTIVE SECURITY INFRASTRUCTURE STACK</SecTitle>
       <div className="mb-4 grid gap-3 md:grid-cols-4">
-        {INFRA.map(([svc, name, desc]) => (
-          <div key={svc} className="rounded-[10px] border border-line bg-panel px-[15px] py-[13px]">
+        {INFRA.map(({ id, svc, name, desc }) => (
+          <div key={id} className="rounded-[10px] border border-line bg-panel px-[15px] py-[13px]">
             <div className="flex items-center justify-between text-xs font-bold">
               <span>{name}</span>
               <Badge tone={bus.services[svc]}>{(bus.services[svc] || "standby").toUpperCase()}</Badge>

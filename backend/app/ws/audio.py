@@ -89,6 +89,21 @@ async def _handle_control(parsed, call: CallSession) -> None:
         await call.on_vad(parsed.speaking)
 
 
+async def _idle_until_disconnect(ws: WebSocket) -> None:
+    """Hold an open but disarmed socket until the browser goes away.
+
+    Incoming audio is drained and dropped: the client may still be capturing,
+    and an unread socket would fill its buffer.
+    """
+    try:
+        while True:
+            message = await ws.receive()
+            if message["type"] == "websocket.disconnect":
+                return
+    except WebSocketDisconnect:
+        return
+
+
 @router.websocket("/ws/audio")
 async def ws_audio(ws: WebSocket) -> None:
     await ws.accept()
@@ -115,8 +130,12 @@ async def ws_audio(ws: WebSocket) -> None:
         await ws.close()
         return
 
-    # Credit guard: a key exists but streaming is switched off. Say so plainly
-    # rather than opening a billed stream.
+    # Credit guard: a key exists but streaming is switched off. The socket is
+    # deliberately HELD OPEN rather than closed. Closing it looks to the client
+    # exactly like a dropped connection, so it reconnects, gets closed again,
+    # and loops forever — hammering the backend and showing "waking backend…"
+    # on a backend that is wide awake. The connection is healthy; only
+    # streaming is disarmed, and that is what the UI should say.
     if not settings.stt_enabled:
         await ws.send_json(
             ErrorEvent(
@@ -124,7 +143,7 @@ async def ws_audio(ws: WebSocket) -> None:
                         "credit will be spent. Set STT_ENABLED=true to test live."
             ).dump()
         )
-        await ws.close()
+        await _idle_until_disconnect(ws)
         return
 
     call = CallSession(settings, emit)

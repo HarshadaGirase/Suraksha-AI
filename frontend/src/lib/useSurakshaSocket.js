@@ -66,6 +66,8 @@ function reduce(state, ev) {
     case "stat.update":
       return { ...state, stats: { ...state.stats, [ev.key]: ev.value } };
     case "error":
+      // Not necessarily fatal: the credit guard reports through this channel
+      // on a perfectly healthy connection.
       return { ...state, error: ev.message };
     default:
       return state;
