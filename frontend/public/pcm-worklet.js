@@ -20,6 +20,21 @@
 const TARGET_RATE = 16000;
 const CHUNK_MS = 100;
 
+/**
+ * Local VAD for the guard's channel cut (§7.1).
+ *
+ * RMS over the raw input, before any resampling. Gate 0 measured 1042-1125ms
+ * from first audio chunk to first STT partial — so anything that waits for a
+ * transcript has already lost by a full second. This runs on the audio thread
+ * with no network hop at all, which is the only way a cut can precede the
+ * speech it is cutting.
+ *
+ * The threshold is deliberately low. A missed detection leaks an OTP; a false
+ * one costs a fraction of a second of muted silence.
+ */
+const VAD_RMS_THRESHOLD = 0.012;
+const VAD_RELEASE_MS = 600;
+
 class PcmDownsampler extends AudioWorkletProcessor {
   constructor(options) {
     super();
@@ -32,14 +47,24 @@ class PcmDownsampler extends AudioWorkletProcessor {
     this.n = 0;
     this.muted = false;
 
+    // Set by the backend when the guard reaches "critical". Until then VAD is
+    // measured but never acts — the mic must keep working during a normal call.
+    this.armed = false;
+    this.speaking = false;
+    this.lastVoiceAt = 0;
+
     this.port.onmessage = (e) => {
-      if (e.data?.type === "mute") this.muted = !!e.data.value;
+      const d = e.data || {};
+      if (d.type === "mute") this.muted = !!d.value;
+      if (d.type === "arm") this.armed = !!d.value;
     };
   }
 
   process(inputs) {
     const channel = inputs[0]?.[0];
     if (!channel) return true;
+
+    this.detectVoice(channel);
 
     // Keep resampling while muted so the fractional read position stays
     // aligned; simply drop the output. Skipping outright would make audio
@@ -67,6 +92,32 @@ class PcmDownsampler extends AudioWorkletProcessor {
     this.tail = src.slice(consumed);
     this.pos = p - consumed;
     return true;
+  }
+
+  /**
+   * The cut itself. When armed and the victim starts speaking, `muted` is set
+   * HERE, on the audio thread, in the same render quantum — the frames are
+   * never handed to postMessage, so nothing reaches the socket. The main
+   * thread is only notified afterwards so the UI and the forensic record can
+   * catch up; it is told what happened, it does not authorise it.
+   */
+  detectVoice(channel) {
+    let sum = 0;
+    for (let i = 0; i < channel.length; i++) sum += channel[i] * channel[i];
+    const rms = Math.sqrt(sum / channel.length);
+    const now = (currentFrame / sampleRate) * 1000;
+
+    if (rms > VAD_RMS_THRESHOLD) {
+      this.lastVoiceAt = now;
+      if (!this.speaking) {
+        this.speaking = true;
+        if (this.armed) this.muted = true;
+        this.port.postMessage({ type: "vad", speaking: true });
+      }
+    } else if (this.speaking && now - this.lastVoiceAt > VAD_RELEASE_MS) {
+      this.speaking = false;
+      this.port.postMessage({ type: "vad", speaking: false });
+    }
   }
 }
 

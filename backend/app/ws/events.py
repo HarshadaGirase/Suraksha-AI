@@ -26,7 +26,7 @@ class Event(BaseModel):
 
 class ConnectionStatus(Event):
     type: Literal["connection.status"] = "connection.status"
-    service: Literal["stt", "gemini", "pgvector", "tts"]
+    service: Literal["stt", "gemini", "db", "tts"]
     state: Literal["standby", "online", "error"]
 
 
@@ -77,7 +77,7 @@ class GuardAction(Event):
     action: Literal[
         "guard_rules",
         "counter_interrogate",
-        "bleep_otp",
+        "channel_cut",
         "terminate_call",
         "warning_tts",
     ]
@@ -153,10 +153,21 @@ class ActMessage(BaseModel):
     act: Literal["intercept", "rescue"]
 
 
+class VadMessage(BaseModel):
+    """Client-side voice activity. §7.1: when the guard is armed the client
+    mutes the outbound channel ITSELF on this signal and then tells us. It does
+    not ask permission — a round trip here would reintroduce the ~1s latency the
+    whole design exists to avoid. This message is a report, not a request."""
+
+    type: Literal["vad"]
+    speaking: bool
+
+
 CLIENT_MESSAGES = {
     "mode": ModeMessage,
     "scenario": ScenarioMessage,
     "act": ActMessage,
+    "vad": VadMessage,
 }
 
 

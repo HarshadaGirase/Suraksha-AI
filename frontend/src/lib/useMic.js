@@ -12,10 +12,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const BANDS = 40;
 
-export function useMic(sendAudio) {
+export function useMic(sendAudio, onVad) {
   const [active, setActive] = useState(false);
   const [error, setError] = useState(null);
   const [levels, setLevels] = useState(() => new Array(BANDS).fill(0));
+
+  // Held in a ref so a changing callback does not force the mic to restart
+  // mid-call, which would drop the stream and re-prompt for permission.
+  const onVadRef = useRef(onVad);
+  onVadRef.current = onVad;
 
   const ctx = useRef(null);
   const stream = useRef(null);
@@ -73,7 +78,13 @@ export function useMic(sendAudio) {
       const worklet = new AudioWorkletNode(audioCtx, "pcm-downsampler", {
         processorOptions: { targetRate: 16000 },
       });
-      worklet.port.onmessage = (e) => sendAudio(e.data);
+      // The worklet posts two things: raw ArrayBuffers of PCM, and VAD
+      // notices. Discriminating here keeps a {type:"vad"} object from being
+      // sent down the socket as if it were audio.
+      worklet.port.onmessage = (e) => {
+        if (e.data instanceof ArrayBuffer) sendAudio(e.data);
+        else if (e.data?.type === "vad") onVadRef.current?.(e.data.speaking);
+      };
       source.connect(worklet);
       node.current = worklet;
 
@@ -96,12 +107,21 @@ export function useMic(sendAudio) {
     }
   }, [sendAudio, stop]);
 
-  /** §7.2 half-duplex, and the guard's predictive cut (C1). */
+  /** §7.3 half-duplex: hold the mic while agent TTS plays. */
   const setMuted = useCallback((value) => {
     node.current?.port.postMessage({ type: "mute", value });
   }, []);
 
+  /**
+   * §7.1: arm the channel cut. Once armed the worklet mutes ITSELF on local
+   * VAD, on the audio thread, without asking. Gate 0 measured ~1.1s to the
+   * first STT partial, so any round trip through here would be far too late.
+   */
+  const setArmed = useCallback((value) => {
+    node.current?.port.postMessage({ type: "arm", value });
+  }, []);
+
   useEffect(() => stop, [stop]);
 
-  return { active, error, levels, start, stop, setMuted };
+  return { active, error, levels, start, stop, setMuted, setArmed };
 }

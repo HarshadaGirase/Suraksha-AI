@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Architecture from "./components/Architecture.jsx";
 import Simulator from "./components/Simulator.jsx";
 import { Tab } from "./components/ui.jsx";
@@ -28,9 +28,25 @@ export default function App() {
     [playTts],
   );
 
+  // Local VAD from the worklet. The mute already happened on the audio thread
+  // by the time this fires (§7.1) — this only reports it, so the backend can
+  // record the cut and measure the guard loop.
+  const busRef = useRef(null);
+  const onVad = useCallback((speaking) => {
+    busRef.current?.sendControl({ type: "vad", speaking });
+  }, []);
+
   const bus = useSurakshaSocket(onEvent);
-  const mic = useMic(bus.sendAudio);
+  const mic = useMic(bus.sendAudio, onVad);
   micRef.current = mic;
+  busRef.current = bus;
+
+  // Arm the worklet the moment the backend says the threat is confirmed.
+  // Arming is cheap and reversible; the cut itself costs nothing until the
+  // victim actually speaks.
+  useEffect(() => {
+    mic.setArmed(bus.threat.state === "critical");
+  }, [mic, bus.threat.state]);
 
   return (
     <div className="px-4 pb-12 pt-[18px] md:px-[30px]">

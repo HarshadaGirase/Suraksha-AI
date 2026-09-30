@@ -1,4 +1,4 @@
-"""Gate 0, step 2 — prove Universal-3.5 Pro Streaming on real Hinglish.
+"""Gate 0, step 2 — prove Universal-3.6 Pro Streaming on real Hinglish.
 
 CLAUDE.MD §19 makes this the stop-the-line gate: if code-mixed Hindi does not
 transcribe cleanly, everything downstream is built on sand and the plan changes.
@@ -153,7 +153,7 @@ async def run(clip: str) -> int:
     # steer code-switched audio. The singular language_code is for genuinely
     # monolingual sessions and would break Hinglish — deliberately unset.
     params = RealTimeParameters(
-        speech_model="universal-3-5-pro",
+        speech_model="universal-3-6-pro",
         encoding=Encoding.pcm_s16le,
         sample_rate=TARGET_SR,
         language_codes=["en", "hi"],
