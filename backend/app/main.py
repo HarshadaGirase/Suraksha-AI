@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import pool
+from app.docs.routes import router as docs_router
 from app.ws.audio import router as ws_router
 
 logging.basicConfig(
@@ -48,6 +49,7 @@ app.add_middleware(
 )
 
 app.include_router(ws_router)
+app.include_router(docs_router)
 
 
 @app.get("/api/health")

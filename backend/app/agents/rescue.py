@@ -74,6 +74,7 @@ class RescueAgent:
         )
         self._first_final_at: float | None = None
         self._opened = False
+        self._announced = False
 
     @property
     def state(self) -> RescueState:
@@ -153,10 +154,13 @@ class RescueAgent:
                 args=call.args, result=result, ms=ms,
             )
 
-            if call.name == "create_case" and self._state.case_id:
+            if call.name in ("create_case", "extract_entities") and self._state.case_id:
                 await self._send_case_update()
-            elif call.name == "extract_entities" and self._state.case_id:
-                await self._send_case_update()
+            elif call.name == "draft_1930_report" and self._state.draft is not None:
+                # The model calls this on its own initiative sometimes, not
+                # only when _draft() asks. Announcing from here means the
+                # document is never silently produced without a doc.ready.
+                await self._announce_draft()
 
     async def _draft(self) -> None:
         """Produce the complaint draft.
@@ -180,10 +184,12 @@ class RescueAgent:
 
         await self._run_tools([c for c in calls if c.name == "draft_1930_report"])
 
-        if self._state.draft is None:
+    async def _announce_draft(self) -> None:
+        """Tell the client the document exists. Fires exactly once."""
+        if self._announced or self._state.draft is None:
             return
+        self._announced = True
 
-        elapsed = self._state.clock.elapsed()
         await self._send(
             DocReady(doc="1930", download_url=f"/api/case/{self._state.case_id}/docs")
         )
@@ -195,7 +201,10 @@ class RescueAgent:
                     value=f"{time.monotonic() - self._first_final_at:.1f}s",
                 )
             )
-        log.info("case %s drafted in %.1fs", self._state.case_id, elapsed)
+        log.info(
+            "case %s drafted in %.1fs",
+            self._state.case_id, self._state.clock.elapsed(),
+        )
         await self._speak(CLOSING)
 
     async def _refuse_credential(self, text: str) -> None:

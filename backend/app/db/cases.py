@@ -102,8 +102,9 @@ async def update_case(case_id: str, **fields: Any) -> None:
         "language_confidence", "status",
     }
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
-    if "transcript" in fields:
-        updates["transcript"] = json.dumps(redact_json(fields["transcript"]))
+    for js in ("transcript", "draft"):
+        if js in fields and fields[js] is not None:
+            updates[js] = json.dumps(redact_json(fields[js]), ensure_ascii=False)
     if not updates:
         return
 

@@ -35,11 +35,22 @@ async def connect(settings: Settings) -> asyncpg.Pool | None:
         )
         async with _pool.acquire() as conn:
             await conn.execute("SELECT 1")
+            await _migrate(conn)
         log.info("Postgres pool ready")
     except Exception as exc:
         log.warning("Postgres unavailable: %s", exc)
         _pool = None
     return _pool
+
+
+async def _migrate(conn) -> None:
+    """Idempotent schema catch-up.
+
+    init.sql only runs when the Docker volume is empty, so a column added
+    after the first boot would never appear on an existing database. These
+    statements are safe to run on every startup.
+    """
+    await conn.execute("ALTER TABLE cases ADD COLUMN IF NOT EXISTS draft JSONB")
 
 
 async def disconnect() -> None:

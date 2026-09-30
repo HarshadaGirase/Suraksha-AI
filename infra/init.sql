@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS cases (
     -- Redacted before it ever arrives here (§12 REDACTION IS MANDATORY).
     transcript          JSONB NOT NULL DEFAULT '[]'::jsonb,
 
+    -- The assembled 1930 draft. Stored because the document outlives the
+    -- WebSocket session: the victim downloads it after the call has ended.
+    draft               JSONB,
+
     status              TEXT NOT NULL DEFAULT 'drafted'
         CONSTRAINT cases_status_valid
         CHECK (status IN ('drafted', 'documents_ready'))

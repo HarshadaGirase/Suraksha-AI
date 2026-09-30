@@ -114,6 +114,8 @@ async def extract_entities(state: RescueState, args: dict[str, Any]) -> dict[str
     if state.draft is not None and applied:
         state.draft.update(applied)
         state.draft["missing_fields"] = state.missing_fields
+        if state.case_id:
+            await repo.update_case(state.case_id, draft=state.draft)
 
     return {
         "applied": applied,
@@ -192,7 +194,11 @@ async def draft_1930_report(state: RescueState, args: dict[str, Any]) -> dict[st
         "elapsed": state.clock.format(),
     }
 
-    await repo.update_case(state.case_id, status="documents_ready")
+    # Persisted so the download survives the call ending — the victim opens the
+    # PDF after they have hung up, not during.
+    await repo.update_case(
+        state.case_id, status="documents_ready", draft=state.draft
+    )
     return {
         "case_id": state.case_id,
         "fields_filled": sum(

@@ -23,6 +23,19 @@ dependencies = [
     # and a blocking driver would stall the WS#1 event loop mid-call.
     "asyncpg>=0.30.0",
 
+    # LLM (§5, §10). Function-calling via models.generate_content.
+    "google-genai>=2.25.0",
+
+    # Pinned because google-genai caps websockets below 17 while assemblyai
+    # needs >=11; an unpinned resolve on Render could pick a version that
+    # satisfies neither at import time.
+    "websockets>=13.0,<17.0",
+
+    # PDF (§5). System libs (cairo/pango) are present in Render's Python
+    # image; the Devanagari font is bundled in app/docs/fonts rather than
+    # assumed, because that image does not ship one.
+    "weasyprint>=70.0",
+
     "python-dotenv>=1.0.0",
 ]
 
