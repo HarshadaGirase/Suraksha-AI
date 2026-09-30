@@ -23,6 +23,16 @@ async def connect(settings: Settings) -> asyncpg.Pool | None:
     if not settings.database_url:
         log.info("DATABASE_URL unset — running without a case record")
         return None
+    # Neon hands out two connection strings. The pooled one (host contains
+    # "-pooler") is pgbouncer in transaction mode, which does not support the
+    # prepared statements asyncpg caches by default -- you get
+    # "prepared statement _asyncpg_stmt_1 already exists" partway through a
+    # session rather than at startup, which is the worst time to find out.
+    # Disabling the cache makes the pooled endpoint safe to use.
+    pooled = "-pooler" in settings.database_url
+    if pooled:
+        log.info("pooled Neon endpoint detected — disabling statement cache")
+
     try:
         _pool = await asyncpg.create_pool(
             settings.database_url,
@@ -32,6 +42,7 @@ async def connect(settings: Settings) -> asyncpg.Pool | None:
             # otherwise surface as a failed tool call mid-demo.
             max_inactive_connection_lifetime=60.0,
             command_timeout=10.0,
+            statement_cache_size=0 if pooled else 100,
         )
         async with _pool.acquire() as conn:
             await conn.execute("SELECT 1")
