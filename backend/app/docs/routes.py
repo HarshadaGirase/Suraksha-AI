@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Response
 
 from app.db import cases as repo
-from app.docs.render import render_pdf
+from app.docs.render import PdfUnavailable, render_pdf
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -53,6 +53,16 @@ async def download_docs(case_id: str, format: str = "pdf") -> Response:
 
     try:
         pdf = render_pdf(draft, created_at=created if isinstance(created, datetime) else None)
+    except PdfUnavailable as exc:
+        # The host is missing cairo/pango. Point at the format that still
+        # works rather than just failing — the victim's facts are all there.
+        log.error("PDF unavailable on this host: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="PDF rendering is unavailable on this host. "
+                   f"The draft is still available at "
+                   f"/api/case/{case_id}/docs?format=json",
+        ) from exc
     except Exception as exc:
         log.exception("PDF render failed for %s", case_id)
         raise HTTPException(status_code=500, detail=f"render failed: {exc}") from exc

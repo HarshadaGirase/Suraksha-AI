@@ -11,11 +11,12 @@ never spoken renders as a visible blank, not as a guess (§10.1).
 """
 
 import html
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from weasyprint import HTML
+log = logging.getLogger(__name__)
 
 FONT_DIR = Path(__file__).parent / "fonts"
 
@@ -185,5 +186,25 @@ def build_html(draft: dict[str, Any], *, created_at: datetime | None = None) -> 
 </body></html>"""
 
 
+class PdfUnavailable(RuntimeError):
+    """WeasyPrint could not load. The draft is still available as JSON."""
+
+
 def render_pdf(draft: dict[str, Any], *, created_at: datetime | None = None) -> bytes:
+    """Render the draft to PDF.
+
+    WeasyPrint is imported HERE, not at module scope, on purpose. It needs
+    cairo/pango/harfbuzz as system libraries rather than pip wheels, and a host
+    without them raises on import. At module scope that would propagate up
+    through app.main and the entire backend would fail to boot -- the whole
+    product dead because one document format is unavailable. Deferred, a
+    missing system library costs the PDF and nothing else: the JSON draft, both
+    acts and the live pipeline all keep working.
+    """
+    try:
+        from weasyprint import HTML
+    except Exception as exc:  # ImportError, or OSError from a missing .so
+        log.error("WeasyPrint unavailable — PDF disabled: %s", exc)
+        raise PdfUnavailable(str(exc)) from exc
+
     return HTML(string=build_html(draft, created_at=created_at)).write_pdf()
