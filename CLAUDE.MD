@@ -110,15 +110,38 @@ two sources.
 
 ## 5. LOCKED TECH STACK
 
-| Layer | Choice |
-|---|---|
-| Frontend | React + Vite + TailwindCSS |
-| Backend | Python + FastAPI (WebSockets — REQUIRED, see §6) |
-| DB | PostgreSQL (Docker) |
-| STT | AssemblyAI Streaming — **`universal-3-6-pro`** (Python SDK) |
-| LLM | Google Gemini Flash, JSON function-calling |
-| TTS | edge-tts, MD5 cache + pre-cached hero MP3s |
-| PDF | WeasyPrint with Noto Sans Devanagari bundled |
+| Layer | Choice | Verified |
+|---|---|---|
+| Frontend | React 18 + Vite 6 + Tailwind v4 | ✅ builds clean |
+| Backend | Python + FastAPI (WebSockets — REQUIRED, see §6) | ✅ |
+| DB | PostgreSQL 16 (Docker, host port **5433**) | ✅ |
+| STT | AssemblyAI Streaming — **`universal-3-6-pro`**, SDK 1.5.5 | ⬜ Gate 0 unrun |
+| LLM | Google Gemini Flash via **`models.generate_content`**, google-genai 2.25.0 | ✅ |
+| TTS | edge-tts, MD5 disk cache + 4 pre-cached hero MP3s | ✅ 7ms cached / 1.9s cold |
+| PDF | WeasyPrint 70, Noto Sans Devanagari **bundled in the repo** | ✅ conjuncts verified |
+
+**Port 5433, not 5432.** A system Postgres on the default port collides
+silently — you connect to the wrong database and the schema is simply absent.
+
+**`models.generate_content`, not the `interactions` endpoint.** On a free-tier
+429 the interactions endpoint *hangs* instead of returning the error;
+`generate_content` surfaces it in under a second. A hang mid-call is
+indistinguishable on screen from a dead product, and 429 is the free tier's
+normal failure mode.
+
+**Gemini's free-tier daily request quota is PER MODEL.** When one Flash model
+is exhausted another still has budget, which is why `GEMINI_MODEL` is an env
+var. A per-day 429 is deliberately **not** retried — it will not clear for
+hours and retries only burn demo seconds. **Before a demo, switch
+`GEMINI_MODEL` to a model you have not been testing on.**
+
+**The Devanagari font is committed, not assumed.** Dev machines have it;
+Render's Python image does not, and a dossier that renders as tofu boxes on
+the deployed link is unrecoverable.
+
+**`STT_ENABLED` defaults to false.** With a key present, every browser opening
+`/ws/audio` would otherwise start a billed stream and a forgotten tab burns
+credit silently. `STT_MAX_SESSION_SECONDS` (180) is the second net.
 
 **Removed from the stack:** pgvector, sentence-transformers, AssemblyAI
 pre-recorded. No vector search anywhere in this build.
@@ -233,10 +256,15 @@ PCM16 mono before WS#1.
 ```
 ASSEMBLYAI_API_KEY=...
 GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-3.5-flash        # daily free quota is PER MODEL
 DATABASE_URL=postgresql://suraksha:suraksha@localhost:5433/suraksha
 TTS_VOICE_AGENT=hi-IN-SwaraNeural
 TTS_VOICE_SCAMMER=hi-IN-MadhurNeural
 ALLOWED_ORIGINS=http://localhost:5173,https://<project>.vercel.app
+
+# CREDIT GUARD — false during development. True opens billed streams.
+STT_ENABLED=false
+STT_MAX_SESSION_SECONDS=180
 ```
 
 ---
@@ -484,21 +512,24 @@ redaction. Sandbox audio is scripted **input** to the real pipeline (§7.2).
 
 ## 19. BUILD ORDER
 
-- **GATE 0** — stream a §15 Hinglish clip through `universal-3-6-pro`, dump raw
-  messages to `fixtures/`. Answers: Devanagari or romanised? do `words[]` arrive
-  on partials? measured latency. **No guard rule may be written before this.**
-- **A** — Docker Postgres + `cases`/`tool_events` schema + async pool, every
-  write through `redact.py`.
-- **B** — Gemini + 4 tools + rescue orchestrator → **Act 2 works end to end.**
-- **C** — WeasyPrint PDF + `GET /api/case/{id}/docs` → download works.
-- **D** — Act 1: sandbox injection, guard rules from the Gate 0 fixture, the
-  `1600xx` check, channel cut, forensic record.
-- **E** — edge-tts + cached hero MP3s + half-duplex.
-- **F** — PUBLIC MODE deploy + 2-user concurrency test.
-- **G** — Polish, `[SIM]` chips, latency stats, README, honesty list.
+| | Batch | Status |
+|---|---|---|
+| ⬜ | **GATE 0** — stream a §15 clip through `universal-3-6-pro`, dump raw messages. Answers: Devanagari or romanised? do `words[]` arrive on partials? measured latency. **No guard rule may be written before this.** | **blocks D** |
+| ✅ | **A** — Docker Postgres + `cases`/`tool_events` + async pool, every write through `redact.py` | done |
+| ✅ | **B** — Gemini + 4 tools + rescue orchestrator → Act 2 end to end | done |
+| ✅ | **C** — WeasyPrint PDF + `GET /api/case/{id}/docs` | done |
+| ⬜ | **D** — Act 1: sandbox injection, guard rules from the Gate 0 fixture, the `1600xx` check, channel cut, forensic record | blocked |
+| ✅ | **E** — edge-tts + cached hero MP3s + half-duplex | done |
+| ⬜ | **F** — PUBLIC MODE deploy + 2-user concurrency test | |
+| ⬜ | **G** — Polish, `[SIM]` chips, latency stats, README | |
 
 Act 2 is built before Act 1 because it needs nothing but a mic, so it is
 demoable the day it is done.
+
+**Everything up to here was built and tested without spending AssemblyAI
+credit.** Act 2's whole pipeline is exercised by `scripts/test_rescue.py`,
+which feeds scripted victim turns straight into the orchestrator in place of
+`transcript.final` events.
 
 ---
 
@@ -536,3 +567,21 @@ demoable the day it is done.
 | 10 | Language reach stated explicitly (§5) | Hindi/Marathi/Urdu live; the other eight Indian languages are not on any streaming model. Do not claim them. |
 | 11 | Deployment Protection + `wss://` added to §6 | The deployed frontend was behind a Vercel login wall. |
 | 12 | Sandbox **file upload** deferred | Deliberate scope cut; the §7.2 path already supports it when we want it. |
+
+### Decisions taken during the build (batches A–E)
+
+| # | Decision | Why |
+|---|---|---|
+| 13 | Postgres on **5433**, plain `postgres:16-alpine` | 5432 collides silently with a system Postgres. pgvector image dropped with the corpus. |
+| 14 | `status` is a **CHECK constraint**, not a convention | The never-file rule is now enforced by the database. A refactor cannot create a "filed" case. |
+| 15 | `utr` is the one **redaction-exempt** key | It is 12 digits so the masker would eat it, but it authorises nothing and a complaint without it is rejected at the counter. |
+| 16 | `STT_ENABLED` credit guard, default off | A key in `.env` otherwise means every page load opens a billed stream. |
+| 17 | Gemini via `models.generate_content`; `GEMINI_MODEL` env var; per-day 429 not retried | The `interactions` endpoint hangs on a 429. Daily quota is per model. |
+| 18 | **OTP guardrail enforced in code**, not only in the prompt | A long emotional code-switched conversation is exactly where a system prompt gets forgotten. Cue word + digit run → refuse before the model sees the turn. |
+| 19 | Draft waits until every question has been **asked**, not answered | Drafting on the first two facts froze a document with `utr` and `district` blank because those answers came two turns later. |
+| 20 | `doc.ready` announced wherever the draft appears | The model calls `draft_1930_report` on its own initiative sometimes; the document was being produced with no event. |
+| 21 | The draft is **persisted on the case row** | The victim downloads it after the call has ended, not during. |
+| 22 | Noto Sans Devanagari **committed to the repo** | Render's image has no Devanagari font; tofu boxes on the deployed link are unrecoverable. |
+| 23 | Four hero MP3s **committed**, cache keyed on voice+text | Cold synthesis is 1.9s; the opener must be instant. edge-tts is unauthenticated and will rate-limit. |
+| 24 | TTS failure returns **503, not 500** | Losing the voice must never lose the conversation — the agent's words are already on screen. |
+| 25 | `websockets` pinned `>=13,<17` | google-genai caps it below 17, assemblyai needs ≥11; an unpinned resolve on Render could satisfy neither. |

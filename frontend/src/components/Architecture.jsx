@@ -4,11 +4,11 @@ import { SecTitle } from "./ui.jsx";
 
 const STAGES = [
   ["STAGE 01", "Hinglish Streaming Engine",
-   "React mic → FastAPI /ws/audio → AssemblyAI Universal-3.5 Pro Streaming. Partials plus word timestamps feed the transcript and the forensic record."],
+   "React mic → FastAPI /ws/audio → AssemblyAI Universal-3.6 Pro Streaming. Partials plus word timestamps feed the transcript and the forensic record."],
   ["STAGE 02", "Guard + Rescue Intent (Gemini)",
    "Keyterm rules fire on partials; Gemini Flash classifies India's 8-scam taxonomy on finals and drives both agents — Guardian (intercept) and RescueAgent (file)."],
   ["STAGE 03", "Tool Calling & Document Dispatch",
-   "5 JSON-schema tools: classify → extract → create_case → draft_1930 → draft_freeze (RAG-cited). The victim downloads the dossier — filing is manual by design."],
+   "4 JSON-schema tools: classify → extract → create_case → draft_1930. The victim downloads the draft — filing is manual by design, and no submit endpoint exists."],
 ];
 
 export default function Architecture() {
@@ -28,11 +28,11 @@ export default function Architecture() {
       <div className="rounded-[10px] border border-line bg-panel2 p-4 font-mono">
         {[
           ["[ Browser Mic (React) ]", "WS#1 /ws/audio — 16kHz PCM16, downsampled client-side"],
-          ["[ AssemblyAI U-3.5 Pro ]", "partials · finals · word timestamps"],
+          ["[ AssemblyAI U-3.6 Pro ]", "partials · finals · word timestamps"],
           ["[ Guard keyterm rules ]", "threat intent confirmed"],
           ["[ Predictive channel cut ]", "victim audio severed before digits leave"],
           ["[ classify → extract → create ]", "case opened, facts locked"],
-          ["[ draft_1930 · draft_freeze ]", "documents ready to download"],
+          ["[ draft_1930 ]", "complaint draft ready to download"],
         ].map(([left, right]) => (
           <div key={left} className="text-[11px] leading-[2.15]">
             {left} ─► <b className="text-amber">{right}</b>

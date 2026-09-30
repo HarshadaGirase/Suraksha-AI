@@ -10,7 +10,10 @@ dist/
 # local data
 *.db
 postgres-data/
-tts_cache/
+# TTS cache: the four §14 hero lines are committed so the deployed backend
+# never needs edge-tts at boot. Everything else regenerates on demand.
+backend/app/tts/cache/*
+!backend/app/tts/cache/*.mp3
 # misc
 .DS_Store
 .vercel

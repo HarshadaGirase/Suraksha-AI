@@ -18,10 +18,10 @@ const STATS = [
 ];
 
 const INFRA = [
-  ["stt", "Streaming STT", "AssemblyAI Universal-3.5 Pro · 16kHz WebSocket · partials + word timestamps."],
+  ["stt", "Streaming STT", "AssemblyAI Universal-3.6 Pro · 16kHz WebSocket · partials + word timestamps."],
   ["gemini", "Guard Intent Engine", "Keyterm rules on partials + Gemini classification on finals."],
-  ["tts", "Gemini Tool Calling", "5 JSON-schema tools: classify · extract · create_case · draft_1930 · draft_freeze."],
-  ["pgvector", "RAG Citation Engine", "pgvector top-3 over RBI Master Direction (Nov 2023)."],
+  ["gemini", "Gemini Tool Calling", "4 JSON-schema tools: classify · extract · create_case · draft_1930."],
+  ["db", "Case Record", "PostgreSQL. Digit runs are masked before anything is written."],
 ];
 
 const SCENARIOS = [
@@ -337,10 +337,14 @@ export default function Simulator({ bus, mic, mode, setMode, scenario, setScenar
           </div>
           <hr className="my-[10px] border-line" />
           <BigButton
-            disabled={!bus.docs["1930"] || !bus.docs.freeze}
-            className="bg-panel2 text-faint"
+            disabled={!bus.docs["1930"]}
+            className={bus.docs["1930"] ? "bg-amber text-bg" : "bg-panel2 text-faint"}
+            onClick={() => {
+              const url = bus.docs["1930"]?.download_url;
+              if (url) window.open(url, "_blank", "noopener");
+            }}
           >
-            ⬇ DOWNLOAD DOCUMENTS (1930 + FREEZE LETTER)
+            ⬇ DOWNLOAD 1930 COMPLAINT DRAFT
           </BigButton>
         </Card>
 
@@ -349,7 +353,9 @@ export default function Simulator({ bus, mic, mode, setMode, scenario, setScenar
             📄 1930 / NCRP REPORT — DRAFT
           </div>
           {bus.docs["1930"] ? (
-            <p className="text-[10.5px] leading-[1.75] text-muted">✓ Draft ready for download</p>
+            <p className="text-[10.5px] leading-[1.75] text-muted">
+              ✓ Draft ready — not filed. You file it yourself.
+            </p>
           ) : (
             <Empty>Draft appears after draft_1930_report() executes</Empty>
           )}
@@ -357,19 +363,19 @@ export default function Simulator({ bus, mic, mode, setMode, scenario, setScenar
 
         <Card>
           <div className="mb-2 text-[11px] font-extrabold tracking-[.5px] text-amber">
-            📄 BANK FREEZE REQUEST — FRAUD DESK
+            ⚖ YOUR RIGHTS — PRINTED ON THE DRAFT
           </div>
-          {bus.docs.freeze ? (
-            <div>
-              <p className="text-[10.5px] leading-[1.75] text-muted">✓ Letter ready for download</p>
-              {bus.docs.freeze.citation && (
-                <div className="mt-[9px] rounded-md border-l-[3px] border-amber bg-amber/15 px-[11px] py-[7px] text-[9.5px] leading-[1.6] text-amber">
-                  📚 {bus.docs.freeze.citation}
-                </div>
-              )}
+          {bus.docs["1930"] ? (
+            <div className="rounded-md border-l-[3px] border-amber bg-amber/15 px-[11px] py-[7px] text-[9.5px] leading-[1.7] text-amber">
+              Tell your bank in writing today — zero liability depends on when you told them.
+              The bank must prove you were at fault, not the other way round.
+              <div className="mt-[6px] text-[8.5px] text-faint">
+                RBI (Responsible Business Conduct) Directions, 2025 · Third Amendment
+                Directions, 2026
+              </div>
             </div>
           ) : (
-            <Empty>Letter appears after draft_freeze_letter() executes</Empty>
+            <Empty>Rights summary appears with the draft</Empty>
           )}
         </Card>
       </div>

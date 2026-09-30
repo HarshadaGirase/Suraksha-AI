@@ -17,7 +17,8 @@ const WS_URL =
 
 export const EMPTY = {
   connection: "idle", // idle | connecting | open | reconnecting | error
-  services: { stt: "standby", gemini: "standby", pgvector: "standby", tts: "standby" },
+  // pgvector was dropped with the RAG corpus; the backend reports db instead.
+  services: { stt: "standby", gemini: "standby", db: "standby", tts: "standby" },
   finals: [],
   partial: null,
   words: [],
@@ -71,8 +72,15 @@ function reduce(state, ev) {
   }
 }
 
-export function useSurakshaSocket() {
+/**
+ * @param onEvent optional listener for every server event, for the ones that
+ *   are actions rather than state — tts.play is audio to queue, not a value to
+ *   render, so it deliberately does not live in the reducer.
+ */
+export function useSurakshaSocket(onEvent) {
   const [state, setState] = useState(EMPTY);
+  const listener = useRef(onEvent);
+  listener.current = onEvent;
   const ws = useRef(null);
   const retry = useRef(0);
   const timer = useRef(null);
@@ -104,6 +112,7 @@ export function useSurakshaSocket() {
         return;
       }
       setState((s) => reduce(s, ev));
+      listener.current?.(ev);
     };
     sock.onerror = () => setState((s) => ({ ...s, connection: "error" }));
     sock.onclose = () => {
