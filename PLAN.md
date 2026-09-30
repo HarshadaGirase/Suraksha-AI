@@ -1,208 +1,150 @@
-# SurakshaAI — Build Plan (revised)
+# SurakshaAI — Build Plan (rev. 2026-09-30)
 
-Spec of record: `CLAUDE.MD`. This file records the **corrections** to that spec and the
-**day-by-day order**. Where the two disagree, this file wins until CLAUDE.MD is patched.
-
-
-
----
-
-## PART 1 — SPEC CORRECTIONS (apply before writing code)
-
-### C1. The bleep, as specified, cannot work. (blocking)
-
-CLAUDE.MD §7: *"gain-mute triggered by STT word timestamps matching digits/OTP keyterms."*
-
-Causality: victim speaks digit → audio leaves the client → AssemblyAI → partial returns
-(~300ms) → client mutes. **The digit is already gone.** A word timestamp describes the
-past. You cannot un-send audio. §18 lists "bleep" under *NOT mocks* — this is the
-weakest claim in the document and the first thing a judge who knows streaming will ask.
-
-**Fix — mute predictively, not reactively:**
-
-1. Guard ARMS when threat state hits `critical` (scammer has demanded an OTP). This is
-   allowed to be slow — it happens during the scammer's turn.
-2. Once armed, the **victim's outbound channel is severed** the instant local VAD detects
-   the victim speaking. Zero latency: no STT round trip, no per-word decision.
-3. You mute **the channel, not the digit**. You never need to know which word is a digit.
-4. STT word timestamps are then used for **evidence and display only** (rendering `••••••`
-   in the transcript, proving in the forensic report that digits were spoken while muted).
-
-Reframe the claim: *"once OTP harvesting is detected, we sever the victim's audio channel
-to the scammer"* — buildable, honest, and stronger than per-word bleeping.
-
-**Also:** this build has **no outbound leg at all** (mic → our own backend). "Scammer never
-hears it" is a claim about a production telephony path that does not exist here. Put it on
-the honesty list as an entry-point substitution — exactly as §18 already does, honestly,
-for the phone line.
-
-### C2. The Golden Clock inflates a number reality already beats. (blocking)
-
-5 Gemini Flash calls + 1 pgvector query + 2 PDF renders ≈ **15–30 seconds**. Not 3:40.
-The mockup animates a fake clock to `T+3:40` over 4.4 real seconds — padding the product
-to look *slower*.
-
-**Fix: show real wall-clock elapsed, uncapped. Delete the T+3:40 target.**
-"Documents ready in 28 seconds vs 4–6 hours manual" is a far better line, and it is true.
-
-### C3. Build order contradicts the stated hero. (blocking)
-
-§1: rescue is *"the hero and the anti-clone differentiator."*
-§19: builds guard (M2) **before** rescue (M3).
-
-On an 8-day clock, whatever is built last gets cut. Current order cuts the differentiator
-and ships the commodity half.
-
-**Fix: build Act 2 (Rescue) first.** It also has no impossible-physics claim and is fully
-demoable with nothing but a mic. Act 1 becomes the sandbox showcase, built second.
-
-### C4. Transcript persistence contradicts the privacy claim. (blocking)
-
-§10.1: *"The call NEVER collects PII."*
-§12: `transcript JSONB` stores the entire panic call verbatim — the victim's narrative,
-account numbers if spoken, and the OTP itself if they blurt it before the guardrail fires.
-
-**Fix:** redact runs of ≥4 consecutive digits at the WS#1 boundary, **before** anything is
-persisted. Then the claim in the pitch is actually true.
-
-### C5. Gate 0 is resolved — and it's good news.
-
-Verified against AssemblyAI docs:
-
-- **Hindi IS supported on streaming**, via `speech_model=universal-3-5-pro`
-  (18 languages; `universal-streaming-english` and the older
-  `universal-streaming-multilingual` do **not** include Hindi — do not use them).
-- **Hinglish code-switching is native** — mid-utterance language switches are handled in a
-  single pass, no language-pair parameter, no routing step.
-- **Word timestamps exist in streaming.** `Turn` messages carry `words[]` with
-  `text, start, end, confidence, word_is_final`; timings in **milliseconds**.
-- **`keyterms_prompt`**: up to 100 terms, ≤50 chars each, and **updatable mid-session** via
-  `UpdateConfiguration` with no reconnect — use this to arm guard vocabulary dynamically.
-- Do **not** set `language_code` — it is for monolingual sessions and will break
-  code-switching.
-
-**Gate 0 therefore shrinks to two unknowns, both stop-the-line (see D0).**
-
-### C6. "No fallbacks" applied to unverified dependencies is a contradiction.
-
-The no-alternatives rule is good discipline *after* verification, not before. Fallback
-decisions are permitted **only at Gate 0**; after that the stack locks.
-
-### C7. Guard rules must be written against observed STT output — never against §15.
-
-Whether Hindi returns in **Devanagari or romanized Latin** decides whether your keyterms
-are `"ओटीपी"` or `"OTP batao"`. You cannot write a single guard rule until you have seen
-real output. Capture it at D0 and treat that capture as the fixture.
-
-### C8. PDF/Devanagari decision moves to Day 0, not M3.
-
-WeasyPrint needs system libs (cairo/pango) and an embedded **Noto Sans Devanagari** with
-correct conjunct shaping; reportlab's Devanagari shaping is worse. A dossier that renders
-as tofu boxes on Day 7 is unrecoverable.
-
-**Decide now: WeasyPrint in Docker with the font bundled. Render one Hindi PDF on Day 0.**
-
-### C9. Deploy moves from last to Day 4.
-
-Render free tier idles down after ~15 min (~50s cold start). A judge opens the link, the
-WebSocket dies, the project reads as broken. Required: deploy early, a visible
-*"waking backend…"* state instead of a dead socket, an uptime pinger, and **WSS not ws://**
-(mixed content is blocked on an HTTPS Vercel page).
-
-### C10. Gemini free tier will rate-limit mid-demo.
-
-5 sequential calls per run × rehearsals. One 429 during the pitch ends it. Needs: retry
-with backoff, a second API key, and visible graceful degradation rather than a hang.
-
-### C11. Missing from the spec entirely.
-
-WS#1 reconnection, AssemblyAI mid-call drop, and any UI error surface beyond
-`{"type":"error"}`. Conference wifi will find all three. Add a visible connection state.
+Spec of record: `CLAUDE.MD`. The corrections that used to live here have now
+been folded into that file (see its §21 change log), so this file is just the
+build order, the verification bar, and the open risks.
 
 ---
 
-## PART 2 — MOCKUP BUGS (fix during the React port)
+## Scope, in one box
 
-The mockup's design is strong and the MOCK DATA MANIFEST comment block is excellent
-practice — **carry it into React as per-component comments.** These are the defects:
+> **ACT 1** — intercept: detect → sever the victim's channel → counter-interrogate
+> → terminate. Output: **Forensic Incident Record**.
+>
+> **ACT 2** — rescue: victim talks → classify → extract → **1930 / NCRP complaint
+> draft**. Output: **one PDF + JSON**.
 
-| # | Issue | Why it matters |
-|---|---|---|
-| 1 | `toggleMic` stores AudioContext in local `const ctx`; `stopMic` closes `window._ac`, which is never assigned | **AudioContext is never closed.** Browsers cap ~6 per page — the 6th mic test silently fails |
-| 2 | `fullDemo` has **no reset** | Button says "RE-RUN"; second run appends duplicate transcript bubbles, re-shows evidence, restarts the clock. Will break on a live re-run |
-| 3 | `animFake` sets `window._fakeIv` but never clears the previous interval | Intervals stack across runs |
-| 4 | Dead no-op: `$('micBtn').addEventListener('click',()=>{...{}},true)` | Delete |
-| 5 | ~12 hardcoded `setTimeout`s drive the whole demo | In React this must be an event-driven state machine off WS#1, or the UI desyncs from the real pipeline |
-| 6 | **Violates its own BLANK-STATE POLICY**: `98.7%`, `₹40000`, `PhonePe`, `99.6/99.1/98.4%` are hardcoded in static HTML | §16 says never pre-fill. Must render from `tool.result` / `evidence.update` |
-| 7 | `.ic` is both the infra-card class and the empty-state icon class | CSS collision; `.empty .ic` wins on specificity but it's fragile |
-| 8 | Tabs/buttons are `<div>`/`<span>` + `onclick` | No keyboard access, no roles. Cheap to fix when porting |
-| 9 | `downloadDocs` builds a hardcoded ₹40,000 blob | Must become `GET /api/case/{id}/docs` |
-| 10 | `B(id,cls,who,txt)` — first param unused | Cleanup |
+Four Gemini tools. One document. One database. No vector search.
+
+**Cut deliberately:** bank freeze letter · RAG/pgvector · sandbox file upload
+(deferred) · Tamil/Telugu/Bengali/etc (not on any streaming model).
 
 ---
 
-## PART 3 — DAY BY DAY
+## The three things that must stay true
 
-**Governing rule: the app must be demoable at the end of every single day.**
-
-### D0 — Sep 22 (today, ~2h) · GATE 0 · stop-the-line
-Two unknowns, both of which invalidate the build if they fail:
-
-1. **Streaming capture.** Real session, `speech_model=universal-3-5-pro`, speak the §15 KYC
-   script. Record raw JSON to `fixtures/stt_hinglish.jsonl`. Answer:
-   - Devanagari or romanized? → decides every guard keyterm (C7)
-   - Do `words[]` with `start`/`end` arrive on **partials** (`end_of_turn:false`) or only on
-     final turns? → decides whether live `••••••` rendering is possible at all
-   - Measured latency to first partial → replaces the guessed 280ms
-2. **Devanagari PDF.** WeasyPrint in Docker, Noto Sans Devanagari bundled, render one page
-   of the §13 Hindi victim statement. Conjuncts correct, no tofu. (C8)
-
-*That fixture file becomes the test input for the entire rest of the build.*
-
-### D1 — Skeleton, blank → live
-Docker Postgres+pgvector · FastAPI `/ws/audio` · React mic → AudioWorklet → 16kHz PCM16 →
-WS#1 → AssemblyAI → **partials rendering in the transcript panel.** UI shell with all
-blank states. Nothing else.
-
-### D2 — Act 2 Rescue core ← *the hero, built first* (C3)
-5 Gemini tools, sequential, strict JSON schemas · `tool.call`/`tool.result` events ·
-case card fills from `case.update` · **real uncapped clock** (C2) · digit redaction before
-persist (C4).
-
-### D3 — RAG + documents
-pgvector corpus (~60 chunks) · `draft_freeze_letter` with a genuine retrieved citation ·
-WeasyPrint PDFs · `GET /api/case/{id}/docs` zip · **download works end to end.**
-→ At this point Act 2 is complete and demoable on its own.
-
-### D4 — DEPLOY PUBLIC MODE ← *moved up from M6* (C9)
-Vercel + Render + Neon · WSS · cold-start UX · 2-user concurrency test.
-Then: edge-tts endpoint, cached hero MP3s, half-duplex (§7.2).
-
-### D5 — Act 1 Guardian
-Sandbox MP3 segment injection through the **same PCM path** as mic (§7.1 — this part of the
-spec is right and worth protecting) · guard rules written from the D0 fixture, not from §15 ·
-**predictive channel mute** (C1) · forensic report.
-
-### D6 — Live mic mode, stats, resilience
-Real AnalyserNode spectrum · latency logging → `stat.update` · WS reconnect + visible
-connection state (C11) · Gemini 429 handling (C10).
-
-### D7 — Sep 29 · Polish + rehearse
-Idle states · `[SIM]` chips · delete `#devStrip` · README (architecture, two-mode run,
-
-
-### D8 — Sep 30 · Buffer, submit early
-Submit with hours to spare, not minutes.
+1. **Never submit.** No auto-filing, no bank contact, no "submitted" state
+   anywhere in code, schema or copy. The product prepares; the victim files.
+2. **Never ask for an OTP.** An AI that asks for a code is indistinguishable
+   from the scam it is fighting. The guardrail fires before any tool call.
+3. **Never persist a digit run.** `redact.py` runs before every write.
 
 ---
 
-## PART 4 — WHAT THE SPEC GETS RIGHT (do not change these)
+## Batches
 
-- Scope discipline and the explicit OUT OF SCOPE list — unusually good, protect it.
-- The no-auto-submission stance. Legally and ethically correct, and §10.1's
-  "[FILL AT FILING]" split turns a limitation into a genuine privacy feature.
-- Sandbox audio as **scripted input through the real pipeline**, never speaker re-capture (§7.1).
-- Client-side downsampling to 16kHz before the socket (§7.3).
-- Half-duplex echo protection (§7.2).
+### GATE 0 — stop-the-line, not yet run
+
+Stream a §15 Hinglish clip through `universal-3-6-pro`; dump every raw message
+to `fixtures/stt_<clip>.jsonl`. Three answers:
+
+1. **Devanagari or romanised Latin?** Decides whether guard keyterms are
+   `"ओटीपी"` or `"OTP batao"`. **No guard rule can be written before this.**
+2. **Do `words[]` arrive on partials (`end_of_turn:false`) or only on finals?**
+   Decides whether live `••••••` rendering is possible at all.
+3. **Measured latency to first partial** — replaces the guessed 280ms.
+
+Needs `ASSEMBLYAI_API_KEY` in `.env`. Costs about ₹1.
+
+### A — Foundation
+
+Docker Postgres · `cases` + `tool_events` per §12 · async pool · every write
+through `redact.py` · `/api/health` reports DB reachability, not just config.
+
+### B — Act 2 Rescue (the hero)
+
+Gemini Flash with strict JSON function-calling · the 4 tools · rescue
+orchestrator firing off victim `transcript.final` · OTP guardrail before any
+tool · real uncapped clock starting at `create_case` · case card and tool panel
+filling from events.
+
+**Done when:** speak Hinglish into the mic, watch the case card fill, with no
+hardcoded value anywhere.
+
+### C — The document
+
+WeasyPrint with Noto Sans Devanagari bundled · §10.1 field split · §11 rights
+block · `GET /api/case/{id}/docs`.
+
+**Render one Hindi page as the first act of this batch.** Conjuncts correct, no
+tofu. A dossier that renders as boxes discovered late is unrecoverable.
+
+### D — Act 1 Guardian
+
+Sandbox MP3 injection through the same PCM path (§7.2) · guard rules written
+from the Gate 0 fixture, never from §15 · the `1600xx` check · channel cut on
+local VAD (§7.1) · forensic record.
+
+### E — Voice
+
+edge-tts endpoint · 4 cached hero MP3s · half-duplex (§7.3).
+
+### F — Deploy PUBLIC MODE
+
+Vercel + Render + Neon · **Deployment Protection OFF** · `wss://` · cold-start
+UX · 2-user concurrency test.
+
+### G — Polish
+
+`[SIM]` chips · latency stats wired to all four cards · README · honesty list.
+
+---
+
+## Open risks
+
+| Risk | Mitigation |
+|---|---|
+| **Gate 0 has never run.** Guard keyterms are unknowable until it does. | Run it the moment the key is in `.env`. Act 2 (batches A–C) does not depend on it, so the build is not blocked. |
+| **Render free tier idles down** (~50s cold start). A judge opens the link and the socket looks dead. | Deploy at F with a visible "waking backend…" state and an uptime pinger. Never a bare failed socket. |
+| **Gemini free tier will rate-limit** mid-demo. 4 calls per run × rehearsals. | Retry with backoff, a second API key, visible graceful degradation rather than a hang. |
+| **Devanagari PDF shaping.** WeasyPrint needs the font bundled and correct conjunct shaping. | First act of batch C, not the last. |
+| **RBI paragraph numbers are unverified.** The PDF is CAPTCHA-blocked; circulating numbers are from the March draft. | §11 prints instrument + date and **no paragraph number**. A gap beats a wrong citation on a document handed to an official. |
+| **WS#1 reconnection / mid-call STT drop.** Conference wifi finds both. | Capped-backoff reconnect and a visible connection state — already built. |
+
+---
+
+## Verification bar
+
+No batch is called done because code exists. Each one states what was run and
+what came back:
+
+- **Gate 0** — the fixture file exists and contains recognisable Hinglish; the
+  three questions are answered in writing.
+- **A** — `docker compose up`, `\dt` shows both tables, `/api/health` returns
+  200 with `db: online`.
+- **B** — a real spoken sentence produces a real `case.update` with no hardcoded
+  values.
+- **C** — the downloaded PDF opens, Hindi renders without tofu, and every
+  `[FILL AT FILING]` field is blank.
+- **D** — the channel measurably goes silent before the first digit's timestamp.
+- **F** — two browsers, two concurrent sessions, from a link with no login wall.
+
+---
+
+## Mockup defects — carried into the React port
+
+These were in the original HTML and must not come back:
+
+| # | Issue |
+|---|---|
+| 1 | `toggleMic` stored the AudioContext in a local `const`; `stopMic` closed a different one → contexts leaked, browsers cap ~6 per page. **Fixed in `useMic.js`.** |
+| 2 | `fullDemo` had no reset → a second run appended duplicate bubbles and restarted the clock. |
+| 3 | `animFake` never cleared the previous interval → intervals stacked. |
+| 4 | ~12 hardcoded `setTimeout`s drove the demo → must be an event-driven state machine off WS#1. |
+| 5 | **Violated its own blank-state policy**: `98.7%`, `₹40000`, `PhonePe` hardcoded in static HTML. |
+| 6 | Tabs/buttons were `<div>` + `onclick` → no keyboard access. **Fixed: real `<button>`s.** |
+| 7 | `downloadDocs` built a hardcoded ₹40,000 blob → must become `GET /api/case/{id}/docs`. |
+
+---
+
+## What the original spec got right (do not change)
+
+- The explicit OUT OF SCOPE list — unusually good discipline, protect it.
+- The no-auto-submission stance, and §10.1's `[FILL AT FILING]` split, which
+  turns a limitation into a genuine privacy feature.
+- Sandbox audio as **scripted input through the real pipeline**, never speaker
+  re-capture (§7.2).
+- Client-side downsampling to 16kHz before the socket (§7.4).
+- Half-duplex echo protection (§7.3).
 - Exactly 2 WebSockets, keys only in FastAPI.
-- The honesty list existing at all (§18) — it just needs C1 added to it.
+- The honesty list existing at all (§18).

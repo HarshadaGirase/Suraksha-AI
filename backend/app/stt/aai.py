@@ -73,12 +73,15 @@ class SttSession:
         client.on(RealTimeEvents.Termination, self._on_termination)
         client.on(RealTimeEvents.Error, self._on_error)
 
-        # language_codes=["en","hi"] plus language_detection is the documented
-        # way to steer code-switched audio. The singular language_code is for
-        # monolingual sessions and would break Hinglish — deliberately unset.
+        # universal-3-6-pro is the current flagship: 32 languages with native
+        # code-switching, and it adds Marathi and Urdu over 3.5 Pro at no cost
+        # to us. language_codes=["en","hi"] plus language_detection is the
+        # documented way to steer code-switched audio. The singular
+        # language_code is for monolingual sessions and would break Hinglish —
+        # deliberately unset.
         await client.connect(
             RealTimeParameters(
-                speech_model="universal-3-5-pro",
+                speech_model="universal-3-6-pro",
                 encoding=Encoding.pcm_s16le,
                 sample_rate=s.sample_rate,
                 language_codes=["en", "hi"],
