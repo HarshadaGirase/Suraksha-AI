@@ -113,9 +113,10 @@ class DocReady(Event):
     contract, and §12 has no 'submitted' status — the victim files manually."""
 
     type: Literal["doc.ready"] = "doc.ready"
-    doc: Literal["1930", "freeze", "forensic"]
+    # "freeze" was removed with the bank letter (§21 change log #1). Two
+    # documents exist: the 1930 draft and the Act 1 forensic record.
+    doc: Literal["1930", "forensic"]
     download_url: str
-    citation: str | None = None
 
 
 class TtsPlay(Event):

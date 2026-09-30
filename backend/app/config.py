@@ -29,6 +29,21 @@ class Settings(BaseSettings):
     # will not hold a stream past this; a demo turn is seconds, not minutes.
     stt_max_session_seconds: int = 180
 
+    # Free-tier eligible (verified against the pricing docs, 2026-09-30).
+    # The free tier's daily request quota is PER MODEL, so if one Flash model
+    # is exhausted another still has budget — which is why this is an env var
+    # and not a constant.
+    gemini_model: str = "gemini-3.5-flash"
+
+    # The free tier's failure mode is a 429, not a bill. A runaway agent loop
+    # would exhaust the daily quota in seconds and take the demo with it, so a
+    # single rescue conversation is capped.
+    gemini_max_calls_per_session: int = 25
+
+    # Per-call ceiling. A victim is mid-sentence; a call that has not returned
+    # by now is worth abandoning and retrying rather than waiting out.
+    gemini_timeout_seconds: float = 30.0
+
     # infra/docker-compose.yml publishes on 5433, not 5432 — see the comment
     # there. Empty means "run without a case record", not "fail to boot".
     database_url: str = ""
