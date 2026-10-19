@@ -3,7 +3,13 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/" }],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://suraksha-ai-7mes.onrender.com/api/$1"
+    },
+    { "source": "/(.*)", "destination": "/" }
+  ],
   "headers": [
     {
       "source": "/pcm-worklet.js",
