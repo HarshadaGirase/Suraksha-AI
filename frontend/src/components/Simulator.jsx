@@ -8,7 +8,7 @@
  */
 
 import { useMemo } from "react";
-import { Badge, BigButton, Card, Empty, Mini, SecTitle, SimChip } from "./ui.jsx";
+import { Badge, BigButton, Card, Empty, Mini, SecTitle } from "./ui.jsx";
 
 const STATS = [
   ["guard_loop", "⚡ GUARD LOOP", "keyterm hit → channel cut"],
@@ -163,10 +163,6 @@ export default function Simulator({ bus, mic, mode, setMode, scenario, setScenar
               </button>
             ))}
           </div>
-          <p className="mb-3 text-[10.5px] text-faint">
-            🎯 Rescue Target: <b className="text-muted">NCRP 1930 Cyber-Fraud Portal</b> (portal
-            submission is not part of this build<SimChip />) · <b className="text-muted">Bank Fraud Desk</b>
-          </p>
           <BigButton disabled className="bg-panel text-faint">
             ▶ SANDBOX INJECTION — ARRIVES IN M4
           </BigButton>
