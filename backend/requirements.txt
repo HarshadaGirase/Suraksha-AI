@@ -12,7 +12,7 @@ google-genai==2.25.0
 websockets==16.1.1
 
 # Audio: decode/resample for sandbox injection and Gate 0 tooling.
-edge-tts==7.2.8
+edge-tts==7.3.1
 soundfile==0.14.0
 soxr==1.1.0
 numpy==2.4.6
